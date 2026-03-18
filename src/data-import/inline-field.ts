@@ -81,16 +81,26 @@ function findSpecificInlineField(line: string, start: number): InlineField | und
     let key = findSeparator(line, start + 1);
     if (key === undefined) return undefined;
 
-    // Fail the match if we find any separator characters (not allowed in keys).
-    for (let sep of Object.keys(INLINE_FIELD_WRAPPERS).concat(Object.values(INLINE_FIELD_WRAPPERS))) {
-        if (key.key.includes(sep)) return undefined;
+    let keyStr = key.key;
+
+    // Check if the key is a wiki-link like [[Note Name]] or [[Note Name|Alias]].
+    let wikiLinkMatch = keyStr.match(/^\[\[([^\]]+)\]\]$/);
+    if (wikiLinkMatch) {
+        let linkContent = wikiLinkMatch[1];
+        let pipeIndex = linkContent.indexOf("|");
+        keyStr = pipeIndex >= 0 ? linkContent.substring(0, pipeIndex) : linkContent;
+    } else {
+        // Fail the match if we find any separator characters (not allowed in keys).
+        for (let sep of Object.keys(INLINE_FIELD_WRAPPERS).concat(Object.values(INLINE_FIELD_WRAPPERS))) {
+            if (keyStr.includes(sep)) return undefined;
+        }
     }
 
     let value = findClosing(line, key.valueIndex, open, INLINE_FIELD_WRAPPERS[open]);
     if (value === undefined) return undefined;
 
     return {
-        key: key.key,
+        key: keyStr,
         value: value.value,
         start: start,
         startValue: key.valueIndex,
@@ -164,6 +174,23 @@ const FULL_LINE_KEY_PARSER: P.Parser<string> = P.regexp(/[^0-9\w\p{Letter}]*/u)
 export function extractFullLineField(text: string): InlineField | undefined {
     let sep = findSeparator(text, 0);
     if (!sep) return undefined;
+
+    // Check if the key is a wiki-link like [[Note Name]] or [[Note Name|Alias]],
+    // optionally surrounded by markdown formatting.
+    let wikiLinkMatch = sep.key.match(/^\s*[_*~`]*\[\[([^\]]+)\]\][_*~`]*\s*$/);
+    if (wikiLinkMatch) {
+        let linkContent = wikiLinkMatch[1];
+        let pipeIndex = linkContent.indexOf("|");
+        let key = pipeIndex >= 0 ? linkContent.substring(0, pipeIndex) : linkContent;
+
+        return {
+            key: key,
+            value: text.substring(sep.valueIndex).trim(),
+            start: 0,
+            startValue: sep.valueIndex,
+            end: text.length,
+        };
+    }
 
     // We need to post-process the key to drop unnecessary opening annotations as well as
     // drop surrounding Markdown.

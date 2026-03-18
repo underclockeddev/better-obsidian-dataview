@@ -1,6 +1,6 @@
 import { EXPRESSION } from "expression/parse";
 import { Link } from "data-model/value";
-import { extractInlineFields, setEmojiShorthandCompletionField, setInlineField } from "data-import/inline-field";
+import { extractInlineFields, extractFullLineField, setEmojiShorthandCompletionField, setInlineField } from "data-import/inline-field";
 
 // <-- Inline field weird edge cases -->
 
@@ -147,6 +147,83 @@ describe("Inline task emoji shorthands", () => {
         let result = extractInlineFields(" - [ ] testTask ⏳2022-07-24", true);
         expect(result[0].key).toEqual("scheduled");
         expect(result[0].value).toEqual("2022-07-24");
+    });
+});
+
+// Wiki-link keys
+
+describe("Wiki-Link Keys (Full-Line)", () => {
+    test("Basic Wiki-Link Key", () => {
+        let result = extractFullLineField("[[Exercise]]:: true");
+        expect(result).toBeTruthy();
+        expect(result!.key).toEqual("Exercise");
+        expect(result!.value).toEqual("true");
+    });
+
+    test("Wiki-Link Key With Alias", () => {
+        let result = extractFullLineField("[[Exercise|My Exercise]]:: true");
+        expect(result).toBeTruthy();
+        expect(result!.key).toEqual("Exercise");
+        expect(result!.value).toEqual("true");
+    });
+
+    test("Wiki-Link Key With Path", () => {
+        let result = extractFullLineField("[[folder/Exercise]]:: 42");
+        expect(result).toBeTruthy();
+        expect(result!.key).toEqual("folder/Exercise");
+        expect(result!.value).toEqual("42");
+    });
+
+    test("Wiki-Link Key With Bold Formatting", () => {
+        let result = extractFullLineField("**[[Exercise]]**:: true");
+        expect(result).toBeTruthy();
+        expect(result!.key).toEqual("Exercise");
+        expect(result!.value).toEqual("true");
+    });
+
+    test("Wiki-Link Key With Link Value", () => {
+        let result = extractFullLineField("[[Exercise]]:: [[2024-01-01]]");
+        expect(result).toBeTruthy();
+        expect(result!.key).toEqual("Exercise");
+        expect(result!.value).toEqual("[[2024-01-01]]");
+    });
+});
+
+describe("Wiki-Link Keys (Inline Wrapped)", () => {
+    test("Bracket-Wrapped Wiki-Link Key", () => {
+        let result = extractInlineFields("[[[Exercise]]:: true]");
+        expect(result.length).toEqual(1);
+        expect(result[0].key).toEqual("Exercise");
+        expect(result[0].value).toEqual("true");
+        expect(result[0].wrapping).toEqual("[");
+    });
+
+    test("Paren-Wrapped Wiki-Link Key", () => {
+        let result = extractInlineFields("([[Exercise]]:: true)");
+        expect(result.length).toEqual(1);
+        expect(result[0].key).toEqual("Exercise");
+        expect(result[0].value).toEqual("true");
+        expect(result[0].wrapping).toEqual("(");
+    });
+
+    test("Inline Wiki-Link Key With Alias", () => {
+        let result = extractInlineFields("[[[Note|Alias]]:: value]");
+        expect(result.length).toEqual(1);
+        expect(result[0].key).toEqual("Note");
+        expect(result[0].value).toEqual("value");
+    });
+
+    test("Wiki-Link Key Among Text", () => {
+        let result = extractInlineFields("Some text [[[Exercise]]:: true] more text");
+        expect(result.length).toEqual(1);
+        expect(result[0].key).toEqual("Exercise");
+        expect(result[0].value).toEqual("true");
+    });
+
+    test("Nested Brackets Still Work", () => {
+        let result = extractInlineFields("[[[[hello:: 16]]");
+        expect(result[0].key).toEqual("hello");
+        expect(result[0].value).toEqual("16");
     });
 });
 
